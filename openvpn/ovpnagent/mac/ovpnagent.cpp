@@ -32,7 +32,7 @@
 #ifdef OVPNAGENT_NAME
 #define OVPNAGENT_NAME_STRING OPENVPN_STRINGIZE(OVPNAGENT_NAME)
 #else
-#define OVPNAGENT_NAME_STRING "sysone_vpnagent"
+#define OVPNAGENT_NAME_STRING "agent_sysonevpn"
 #endif
 
 #include <openvpn/log/logbase.hpp>
@@ -374,6 +374,9 @@ class MyClientInstance : public WS::Server::Listener::Client
                 const Json::Value root = json::parse(in.to_string(), "JSON request");
                 if (!root.isObject())
                     throw Exception("json parse error: top level json object is not a dictionary");
+
+                // print debug information
+                OPENVPN_LOG("JSON request: " << in.to_string() << " URI: " << req.uri);
 
                 if (req.uri == "/tun-setup")
                 {

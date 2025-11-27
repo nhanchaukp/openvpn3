@@ -32,7 +32,7 @@
 #ifdef OVPNAGENT_NAME
 #define OVPNAGENT_NAME_STRING OPENVPN_STRINGIZE(OVPNAGENT_NAME)
 #else
-#define OVPNAGENT_NAME_STRING "sysone_vpnagent"
+#define OVPNAGENT_NAME_STRING "agent_sysonevpn"
 #endif
 
 #include <openvpn/log/logbase.hpp>

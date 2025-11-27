@@ -17,7 +17,7 @@
 #ifdef OVPNAGENT_NAME
 #define OVPNAGENT_NAME_STRING OPENVPN_STRINGIZE(OVPNAGENT_NAME)
 #else
-#define OVPNAGENT_NAME_STRING "ovpnagent"
+#define OVPNAGENT_NAME_STRING "sysone_vpnagent"
 #endif
 
 #include <openvpn/common/string.hpp>
