@@ -44,8 +44,38 @@ function(add_ssl_library target)
         endif ()
         target_compile_definitions(${target} PRIVATE -DUSE_MBEDTLS)
     else ()
-        pkg_search_module(OpenSSL REQUIRED IMPORTED_TARGET openssl)
-        SET(SSL_LIBRARY PkgConfig::OpenSSL)
+        # Force static OpenSSL on macOS if requested
+        if(APPLE AND DEFINED ENV{FORCE_STATIC_LINKING})
+            message(STATUS "🔧 Forcing static OpenSSL linking for ${target}...")
+            
+            find_library(OPENSSL_SSL_STATIC NAMES libssl.a PATHS
+                /opt/homebrew/opt/openssl@3/lib
+                /opt/homebrew/opt/openssl/lib
+                /usr/local/opt/openssl@3/lib
+                /usr/local/opt/openssl/lib
+                NO_DEFAULT_PATH
+            )
+            find_library(OPENSSL_CRYPTO_STATIC NAMES libcrypto.a PATHS
+                /opt/homebrew/opt/openssl@3/lib
+                /opt/homebrew/opt/openssl/lib
+                /usr/local/opt/openssl@3/lib
+                /usr/local/opt/openssl/lib
+                NO_DEFAULT_PATH
+            )
+            
+            if(OPENSSL_SSL_STATIC AND OPENSSL_CRYPTO_STATIC)
+                message(STATUS "  ✅ Using static OpenSSL SSL: ${OPENSSL_SSL_STATIC}")
+                message(STATUS "  ✅ Using static OpenSSL Crypto: ${OPENSSL_CRYPTO_STATIC}")
+                set(SSL_LIBRARY ${OPENSSL_SSL_STATIC} ${OPENSSL_CRYPTO_STATIC})
+            else()
+                message(WARNING "  ⚠️  Static OpenSSL not found, falling back to pkg-config")
+                pkg_search_module(OpenSSL REQUIRED IMPORTED_TARGET openssl)
+                SET(SSL_LIBRARY PkgConfig::OpenSSL)
+            endif()
+        else()
+            pkg_search_module(OpenSSL REQUIRED IMPORTED_TARGET openssl)
+            SET(SSL_LIBRARY PkgConfig::OpenSSL)
+        endif()
         target_compile_definitions(${target} PRIVATE -DUSE_OPENSSL)
     endif ()
 
@@ -128,12 +158,46 @@ function(add_corelibrary_dependencies target)
     find_package(asio REQUIRED)
     target_link_libraries(${target} asio::asio)
 
-    find_package(lz4 REQUIRED)
-    target_link_libraries(${target} lz4::lz4)
+    # Force static linking on macOS for agent builds
+    if(APPLE AND DEFINED ENV{FORCE_STATIC_LINKING})
+        message(STATUS "🔧 Forcing static library linking for ${target}...")
+        
+        # LZ4 - find static library explicitly
+        find_library(LZ4_STATIC_LIB NAMES liblz4.a PATHS 
+            /opt/homebrew/opt/lz4/lib
+            /usr/local/opt/lz4/lib
+            NO_DEFAULT_PATH
+        )
+        if(LZ4_STATIC_LIB)
+            message(STATUS "  ✅ Using static LZ4: ${LZ4_STATIC_LIB}")
+            target_link_libraries(${target} ${LZ4_STATIC_LIB})
+        else()
+            find_package(lz4 REQUIRED)
+            target_link_libraries(${target} lz4::lz4)
+        endif()
+        
+        # fmt - find static library explicitly
+        find_library(FMT_STATIC_LIB NAMES libfmt.a PATHS 
+            /opt/homebrew/opt/fmt/lib
+            /usr/local/opt/fmt/lib
+            NO_DEFAULT_PATH
+        )
+        if(FMT_STATIC_LIB)
+            message(STATUS "  ✅ Using static fmt: ${FMT_STATIC_LIB}")
+            target_link_libraries(${target} ${FMT_STATIC_LIB})
+        else()
+            find_package(fmt REQUIRED)
+            target_link_libraries(${target} fmt::fmt)
+        endif()
+    else()
+        # Default dynamic linking
+        find_package(lz4 REQUIRED)
+        target_link_libraries(${target} lz4::lz4)
 
-    # fmtlib
-    find_package(fmt REQUIRED)
-    target_link_libraries(${target} fmt::fmt)
+        # fmtlib
+        find_package(fmt REQUIRED)
+        target_link_libraries(${target} fmt::fmt)
+    endif()
 
     add_ssl_library(${target})
 
@@ -185,6 +249,39 @@ function(add_corelibrary_dependencies target)
 endfunction()
 
 function (add_json_library target)
+  # Force static jsoncpp on macOS if requested
+  if(APPLE AND DEFINED ENV{FORCE_STATIC_LINKING})
+    message(STATUS "🔧 Forcing static jsoncpp linking for ${target}...")
+    
+    find_library(JSONCPP_STATIC_LIB NAMES libjsoncpp.a PATHS
+        ${CMAKE_SOURCE_DIR}/../build_static_deps/install/lib
+        /opt/homebrew/opt/jsoncpp/lib
+        /usr/local/opt/jsoncpp/lib
+        NO_DEFAULT_PATH
+    )
+    
+    if(JSONCPP_STATIC_LIB)
+        message(STATUS "  ✅ Using static jsoncpp: ${JSONCPP_STATIC_LIB}")
+        target_link_libraries(${target} ${JSONCPP_STATIC_LIB})
+        
+        # Find include directory
+        find_path(JSONCPP_INCLUDE_DIR json/json.h PATHS
+            ${CMAKE_SOURCE_DIR}/../build_static_deps/install/include
+            /opt/homebrew/opt/jsoncpp/include
+            /usr/local/opt/jsoncpp/include
+        )
+        if(JSONCPP_INCLUDE_DIR)
+            target_include_directories(${target} PRIVATE ${JSONCPP_INCLUDE_DIR})
+        endif()
+        
+        target_compile_definitions(${target} PRIVATE -DHAVE_JSONCPP)
+        return()
+    else()
+        message(WARNING "  ⚠️  Static jsoncpp not found, falling back to dynamic")
+    endif()
+  endif()
+  
+  # Default dynamic linking
   find_package(jsoncpp CONFIG)
   if (jsoncpp_FOUND AND TARGET JsonCpp::JsonCpp)
     target_link_libraries(${target} JsonCpp::JsonCpp)
